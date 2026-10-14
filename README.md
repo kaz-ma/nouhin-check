@@ -4,6 +4,8 @@
 
 👉 **[kaz-ma.github.io/nouhin-check/](https://kaz-ma.github.io/nouhin-check/)**
 
+![納品前チェックの画面。サンプルHTMLを検査して、確実18件・疑い2件・候補2件を行番号つきで表示している](screenshot.png)
+
 ---
 
 ## なぜ作ったか
