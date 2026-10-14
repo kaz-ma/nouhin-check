@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="納品前チェック">
+  <rect width="512" height="512" fill="#1f5f7a"/>
+  <!-- 太いチェックマーク。16pxでも形が残るよう線幅を56px（11%）にしてある -->
+  <path d="M128 266 L212 350 L384 178" fill="none" stroke="#eef5f8" stroke-width="56"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

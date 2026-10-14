@@ -1,0 +1,1260 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>納品前チェック ─ HTMLを貼るだけで納品前の事故を洗い出す</title>
+<meta name="description" content="HTMLを貼るだけで、納品前に直すべき箇所を洗い出します。localhost残り、ダミーテキスト、機種依存文字、width/height欠落など。URL不要・サーバー不要・ブラウザ内で完結。">
+
+<!-- アイコンとOG画像は logo.svg から生成（week-04-favicon一式の仕様）。
+     GitHub Pages のプロジェクトページは /nouhin-check/ 配下なので、パスは相対で書く。 -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1f5f7a">
+
+<meta property="og:title" content="納品前チェック ─ HTMLを貼るだけで納品前の事故を洗い出す">
+<meta property="og:description" content="HTMLを貼るだけで、納品前に直すべき箇所を洗い出します。localhost残り、ダミーテキスト、機種依存文字、width/height欠落など。URL不要・サーバー不要・ブラウザ内で完結。">
+<meta property="og:image" content="https://kaz-ma.github.io/nouhin-check/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kaz-ma.github.io/nouhin-check/">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+:root{
+  --bg:#fbfbfa; --surface:#fff; --text:#1c1b1a; --muted:#6b6866;
+  --line:#e0dedb; --field-border:#8a8784;
+  --accent:#1f5f7a; --on-accent:#fff; --accent-soft:#eef5f8;
+  --sure:#9a3412; --doubt:#8a6d1f; --maybe:#4a5568; --info:#2f6f45;
+  --radius:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#171615; --surface:#201f1d; --text:#eceae7; --muted:#a09c98;
+    --line:#35322f; --field-border:#6f6b67;
+    --accent:#7ab8d4; --on-accent:#201f1d; --accent-soft:#1b2429;
+    --sure:#f0a080; --doubt:#dcc176; --maybe:#a9b4c2; --info:#7bbd93;
+  }
+}
+*{box-sizing:border-box}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+body{
+  margin:0; padding:0 16px 64px; background:var(--bg); color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  line-height:1.75; -webkit-text-size-adjust:100%;
+}
+main,.site-header,.site-footer{max-width:900px; margin-inline:auto}
+.site-header{padding:44px 0 24px}
+.site-header h1{margin:0; font-size:clamp(1.9rem,6vw,2.5rem); letter-spacing:-.02em}
+.catch{margin:14px 0 4px; font-size:clamp(1.1rem,3.2vw,1.45rem); font-weight:700; line-height:1.5}
+.catch small{display:block; font-size:.78em; font-weight:600; color:var(--muted); margin-top:4px}
+.note{margin:10px 0 0; color:var(--muted); font-size:.9rem}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px}
+
+/* 入力 */
+.panel{border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:16px; margin-top:20px}
+.panel h2{margin:0 0 10px; font-size:1rem}
+#src{
+  width:100%; min-height:15em; resize:vertical; font:inherit;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85rem; line-height:1.6;
+  padding:10px; border:1px solid var(--field-border); border-radius:6px;
+  background:var(--bg); color:var(--text); white-space:pre; overflow-wrap:normal;
+}
+.row{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px}
+.btn{font:inherit; font-size:.88rem; padding:8px 14px; border:1px solid var(--line);
+  border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600}
+.spacer{flex:1}
+.privacy{font-size:.82rem; color:var(--muted)}
+
+/* ドロップゾーン・読み込み */
+.dropzone{
+  border:2px dashed var(--field-border); border-radius:var(--radius);
+  padding:18px 16px; text-align:center; background:var(--bg); transition:border-color .15s, background .15s;
+}
+.dropzone.is-over{border-color:var(--accent); background:var(--accent-soft)}
+.dz-main{margin:0; font-weight:700; font-size:.95rem}
+.dz-sub{margin:6px 0 0; color:var(--muted); font-size:.82rem}
+.dz-row{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:12px}
+.visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+.filelist{width:100%; border-collapse:collapse; font-size:.86rem; margin-top:4px; font-variant-numeric:tabular-nums}
+.filelist th,.filelist td{border-bottom:1px solid var(--line); padding:6px 8px; text-align:right}
+.filelist th{color:var(--muted); font-weight:500}
+.filelist th:first-child,.filelist td:first-child{text-align:left; overflow-wrap:anywhere;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem}
+.filelist tr.pick{cursor:pointer}
+.filelist tr.pick:hover td{background:var(--accent-soft)}
+.filelist tr.active td{background:var(--accent-soft); font-weight:700}
+.filelist .zero{color:var(--muted)}
+.filelist-wrap{overflow-x:auto; margin-top:10px}
+.enc{font-size:.76rem; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 5px}
+.target{margin:14px 0 0; font-size:.88rem; color:var(--muted); overflow-wrap:anywhere}
+.target b{color:var(--text)}
+
+/* 結果 */
+.counts{display:flex; flex-wrap:wrap; gap:6px 18px; margin:0 0 4px; font-size:.92rem; font-variant-numeric:tabular-nums}
+.counts b{font-size:1.15rem}
+.c-sure{color:var(--sure)} .c-doubt{color:var(--doubt)} .c-maybe{color:var(--maybe)} .c-info{color:var(--info)}
+.tier{margin-top:18px; min-width:0}
+.tier>summary{cursor:pointer; font-weight:700; font-size:.98rem; padding:4px 0}
+.tier-head{font-weight:700; font-size:.98rem; padding:4px 0; margin:0}
+.tier-desc{margin:2px 0 10px; font-size:.84rem; color:var(--muted)}
+.group{border-left:3px solid var(--line); padding:10px 0 10px 12px; margin:0 0 18px; min-width:0}
+.group.t-sure{border-left-color:var(--sure)}
+.group.t-doubt{border-left-color:var(--doubt)}
+.group.t-maybe{border-left-color:var(--maybe)}
+.group.t-info{border-left-color:var(--info)}
+.g-head{display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-size:.95rem; margin:0}
+.g-count{margin-left:auto; font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap}
+.g-lines{margin:8px 0 0; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:baseline; font-size:.82rem}
+.g-lines .lbl{color:var(--muted)}
+.g-line{font-variant-numeric:tabular-nums; border:1px solid var(--line); border-radius:4px;
+  padding:0 6px; background:var(--bg); white-space:nowrap}
+.g-more{color:var(--muted)}
+.g-detail{margin-top:8px}
+.g-detail>summary{cursor:pointer; font-size:.84rem; color:var(--muted)}
+.g-item{margin:8px 0 0; min-width:0}
+.g-item .ln{font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums}
+.finding{border-left:3px solid var(--line); padding:8px 0 8px 12px; margin:0 0 14px; min-width:0}
+.finding.t-sure{border-left-color:var(--sure)}
+.finding.t-doubt{border-left-color:var(--doubt)}
+.finding.t-maybe{border-left-color:var(--maybe)}
+.finding.t-info{border-left-color:var(--info)}
+.f-head{display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-size:.92rem}
+.f-line{font-variant-numeric:tabular-nums; color:var(--muted); font-size:.85rem; white-space:nowrap}
+.f-id{font-family:ui-monospace,monospace; font-size:.78rem; color:var(--muted);
+  border:1px solid var(--line); border-radius:4px; padding:0 5px}
+.f-title{font-weight:700}
+.f-code{margin:6px 0 0; padding:8px 10px; background:var(--bg); border:1px solid var(--line);
+  border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.78rem; line-height:1.6; overflow-x:auto; white-space:pre}
+.f-why,.f-fix{margin:6px 0 0; font-size:.86rem}
+.f-why{color:var(--muted)}
+.f-fix::before{content:"→ "; color:var(--accent); font-weight:700}
+.ok{margin:8px 0 0; color:var(--info); font-weight:600}
+.handoff{margin-top:20px; padding-top:14px; border-top:1px solid var(--line); font-size:.86rem; color:var(--muted)}
+
+/* LP */
+.lp{max-width:900px; margin:72px auto 0; border-top:1px solid var(--line); padding-top:8px}
+.lp section{margin-top:44px}
+.lp h2{font-size:clamp(1.12rem,3.4vw,1.4rem); letter-spacing:-.01em; margin:0 0 12px}
+.lp p{margin:0 0 12px}
+.lp ul{margin:0 0 12px; padding-left:1.3em}
+.lp li{margin-bottom:6px}
+.lp pre{margin:0 0 12px; padding:14px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.78rem; line-height:1.7; overflow-x:auto; white-space:pre}
+.items dt{font-weight:700; margin-top:18px; font-family:ui-monospace,monospace; font-size:.88rem}
+.items dd{margin:3px 0 0; color:var(--muted); font-size:.9rem}
+.items h3{font-size:.98rem; margin:26px 0 0; padding-bottom:4px; border-bottom:1px solid var(--line)}
+.faq dt{font-weight:700; margin-top:20px}
+.faq dt::before{content:"Q. "; color:var(--accent)}
+.faq dd{margin:4px 0 0; color:var(--muted)}
+.faq dd::before{content:"A. "; font-weight:700; color:var(--text)}
+.limits{font-size:.9rem}
+.site-footer{max-width:900px; margin:56px auto 0; padding-top:20px; border-top:1px solid var(--line);
+  color:var(--muted); font-size:.85rem}
+.site-footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ===== 1. ヒーロー（02-売り方.md §4-1） ===== -->
+<header class="site-header">
+  <h1>納品前チェック</h1>
+  <p class="catch">文法は合っているのに、出したら事故る。
+    <small>サイトのフォルダをドラッグするだけ。納品前に直すべき18項目を、ファイルごとに洗い出します。</small></p>
+  <p class="note">URL不要・サーバー不要・インストール不要。ファイルはブラウザの外に出ません。保存もしません。</p>
+</header>
+
+<main>
+  <!-- ===== 2. 入力エリア ===== -->
+  <div class="panel">
+    <h2>検査するHTMLを渡してください</h2>
+
+    <div class="dropzone" id="dropzone">
+      <p class="dz-main">フォルダごと、ここにドラッグ</p>
+      <p class="dz-sub">中の .html をまとめて検査します。ファイル1つでも構いません。</p>
+      <div class="dz-row">
+        <button class="btn btn-primary" id="pick-folder" type="button">フォルダを選ぶ</button>
+        <button class="btn" id="pick-file" type="button">ファイルを選ぶ</button>
+      </div>
+      <p class="dz-sub">ファイルはこのブラウザの中だけで読みます。どこにも送信しません。</p>
+    </div>
+    <label class="visually-hidden" for="input-folder">フォルダを選ぶ</label>
+    <input class="visually-hidden" type="file" id="input-folder" webkitdirectory directory>
+    <label class="visually-hidden" for="input-file">ファイルを選ぶ</label>
+    <input class="visually-hidden" type="file" id="input-file" accept=".html,.htm" multiple>
+
+    <div id="filelist-area"></div>
+
+    <details class="g-detail" id="paste-area" style="margin-top:14px">
+      <summary>HTMLを直接貼る</summary>
+      <label class="visually-hidden" for="src">HTMLを貼る</label>
+      <textarea id="src" spellcheck="false" placeholder="ここにHTMLを貼る（Ctrl+A → Ctrl+C でコピーしたもの）"></textarea>
+      <div class="row">
+        <button class="btn" id="sample" type="button">サンプルを入れる</button>
+        <button class="btn" id="clear" type="button">全部消す</button>
+        <span class="spacer"></span>
+        <span class="privacy">入力内容は保存されません</span>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===== 3. 結果エリア ===== -->
+  <div class="panel" id="result-panel">
+    <h2>結果</h2>
+    <div id="result"><p class="note">HTMLを貼ると、ここに結果が出ます。</p></div>
+    <!-- ===== 4. Nu Html Checker への案内（§4-6 FAQ の要約） ===== -->
+    <p class="handoff">文法・閉じタグ・属性の誤りは、このツールでは見ていません。
+      W3Cの<a href="https://validator.w3.org/nu/#textarea" target="_blank" rel="noreferrer">Nu Html Checker</a>が無料で、貼り付けにも対応しています。続けて使ってください。</p>
+  </div>
+</main>
+
+<div class="lp">
+  <!-- ===== 5. 課題提示（§4-2） ===== -->
+  <section>
+    <h2>納品前のHTMLは、たいていのツールで調べられません</h2>
+    <p>Lighthouse、PageSpeed Insights、WAVE、SEOチェキ。どれも優秀ですが、全部「URL」を要求します。</p>
+    <p>納品前のHTMLは、まだ公開されていません。ローカルサーバーを立てれば使えますが、そこまでやりますか。</p>
+    <h2>そして、文法チェックを通しても事故は防げません</h2>
+    <p>W3CのNu Html Checkerは、HTMLを貼り付けて文法を検査できます。無料です。
+      ただし見ているのは「HTMLの仕様に合っているか」だけです。だから、こういうものは全部通過します。</p>
+    <ul>
+      <li>画像のURLが <code>localhost</code> のまま残っている<br>
+        <span class="note">→ 自分のPCでは最後まで正常に見えます。本番だけ画像が出ません</span></li>
+      <li>本文に「サンプルテキスト」が残っている<br>
+        <span class="note">→ 読み慣れた文字列は、自分の目が飛ばします</span></li>
+      <li><code>㈱</code> や <code>①</code> を使っている<br>
+        <span class="note">→ 環境によって別の文字や □ になります</span></li>
+      <li><code>img</code> に <code>width</code> と <code>height</code> が無い<br>
+        <span class="note">→ 読み込み中に、下の文章が飛びます</span></li>
+      <li><code>https</code> のページで、画像だけ <code>http://</code> から読んでいる<br>
+        <span class="note">→ ブラウザが遮断します。画像が消え、アドレスバーの鍵マークが外れます</span></li>
+    </ul>
+    <p>全部、仕様としては正しいHTMLです。</p>
+  </section>
+
+  <!-- ===== 6. 解決（§4-3） ===== -->
+  <section>
+    <h2>仕様は見ません。事故だけ見ます</h2>
+    <p>文法チェックはNu Html Checkerに任せてください。このツールはやりません。
+      代わりに「仕様は正しいが、納品すると事故る」18項目だけを見ます。</p>
+    <p>HTMLを貼ると、場所（行番号）と理由が出ます。
+      スコアは出しません。「80点だから大丈夫」という誤った安心を作らないためです。件数と場所だけを出します。</p>
+  </section>
+
+  <!-- ===== 7. 何を見るか（§4-4） ===== -->
+  <section>
+    <h2>何を見るか（18項目）</h2>
+    <dl class="items">
+      <h3>A群：出したら恥をかくもの</h3>
+      <dt>A1　自分のPCを指すURL</dt><dd><code>localhost</code> / <code>127.0.0.1</code> / <code>file://</code> / <code>.test</code> / ngrok</dd>
+      <dt>A2　ダミーテキストの残り</dt><dd>Lorem ipsum、ダミーテキスト、同じ文字の連続（確実）／サンプル、仮、テスト、TODO（疑い）</dd>
+      <dt>A3　script内のデバッグコード</dt><dd><code>console.log</code> / <code>debugger</code> / <code>alert(</code></dd>
+      <dt>A4　コメント内の作業メモ</dt><dd>TODO、FIXME（確実）／仮、修正、確認、メモ（疑い）</dd>
+      <dt>A5　機種依存文字</dt><dd><code>①</code>〜<code>⑳</code>、<code>㈱</code>、<code>℡</code>、<code>Ⅰ</code>〜<code>Ⅹ</code>、<code>㎡</code>、半角カナ</dd>
+
+      <h3>B群：表示が崩れるもの</h3>
+      <dt>B1　img に width / height が無い</dt><dd>読み込み中に下の文章が押し出される（レイアウトの移動）</dd>
+      <dt>B2　loading="lazy" の付け忘れ・付けすぎ</dt><dd>位置は推測なので「候補」として出します</dd>
+      <dt>B3　srcset が無い img</dt><dd>スマホにも大きい画像をそのまま送っている状態</dd>
+      <dt>B4　h1 が0個、または2個以上</dt><dd>ページの主題が無い、または複数ある</dd>
+      <dt>B5　見出し階層の飛び</dt><dd>h1 の次に h3 など。読み上げで構造をたどれなくなる</dd>
+
+      <h3>C群：リンクとフォーム</h3>
+      <dt>C1　入力欄にラベルが紐付いていない</dt><dd>label で囲む形は判定できないため「疑い」として出します</dd>
+      <dt>C2　空リンク</dt><dd><code>href="#"</code> / <code>href=""</code> / <code>javascript:void(0)</code></dd>
+      <dt>C3　https ページ内の http:// リソース</dt><dd>ブラウザが混在コンテンツとして遮断する</dd>
+      <dt>C4　target="_blank" と rel="noopener" について</dt><dd>問題ではありません。正しい事実を「情報」として出します</dd>
+
+      <h3>D群：検索とSNSでの見た目</h3>
+      <dt>D1　title が無い / 空</dt><dd>検索結果とタブに出る文字</dd>
+      <dt>D2　meta description が無い / 長すぎ</dt><dd>120字という基準は目安です</dd>
+      <dt>D3　og:title / og:image / og:description が無い</dt><dd>SNSに貼ったときのカードの見た目</dd>
+      <dt>D4　html lang が無い / en のまま</dt><dd>読み上げの言語と、ブラウザの翻訳提案の判断材料</dd>
+    </dl>
+  </section>
+
+  <!-- ===== 8. 使い方（§4-5） ===== -->
+  <section>
+    <h2>使い方</h2>
+    <ol class="lp-steps">
+      <li>サイトのフォルダを、この画面にドラッグする（または「フォルダを選ぶ」）</li>
+      <li>中の .html が一覧で出るので、見たいファイルを選ぶ</li>
+      <li>出た項目を、件数の多い種類から直す</li>
+    </ol>
+    <p>HTMLを直接貼ることもできます（「HTMLを直接貼る」を開いてください）。</p>
+    <p>ファイルはこのブラウザの中だけで読みます。どこにも送信しません。
+      ブラウザの仕組み上、<b>あなたが選んだファイル以外は読めません</b>。</p>
+  </section>
+
+  <!-- ===== 9. FAQ（§4-6）＋ 既知の限界 ===== -->
+  <section>
+    <h2>よくある質問</h2>
+    <dl class="faq">
+      <dt>貼ったHTMLは送信されますか</dt>
+      <dd>されません。全部ブラウザの中で処理します。<code>localStorage</code> にも保存しません。
+        他人の未公開の制作物を貼ることがあるためです。</dd>
+      <dt>文法チェックはしないのですか</dt>
+      <dd>しません。W3CのNu Html Checkerが無料でやっています。
+        結果欄の下からリンクしているので、続けて使ってください。</dd>
+      <dt>URLを入れて検査できますか</dt>
+      <dd>できません。ブラウザから他のサイトを読むことは、ブラウザ自身の制限（CORS）で禁止されています。HTMLを貼ってください。</dd>
+      <dt>リンク切れは分かりますか</dt>
+      <dd>分かりません。実際にアクセスしないと404かどうか判定できず、それはブラウザからはできません。
+        空リンク（<code>href="#"</code>）だけは検出します。</dd>
+      <dt>自動で直してくれますか</dt>
+      <dd>直しません。何が変わったか分からなくなるためです。場所と理由だけを出します。</dd>
+      <dt>画像のファイルサイズは分かりますか</dt>
+      <dd>分かりません。HTMLソースには画像の本体が入っていないためです。
+        画像の書き出しは <a href="https://kaz-ma.github.io/imgset/" target="_blank" rel="noreferrer">imgset</a> を使ってください。</dd>
+      <dt>複数のファイルをまとめて検査できますか</dt>
+      <dd>今の版では1ファイルずつです。</dd>
+    </dl>
+
+    <h2>できないこと・間違えること</h2>
+    <ul class="limits">
+      <li><b>B1</b>：CSSの <code>aspect-ratio</code> で高さを確保している場合も検出します。HTMLソースだけではCSSを見られません。</li>
+      <li><b>B2</b>：どこがファーストビューかは<b>推測</b>です。最初の2枚までを「最初に見える画像」と仮定しています。</li>
+      <li><b>C1</b>：<code>&lt;label&gt;</code> で囲む形と <code>for</code> による対応は、どちらも検出しません。ただし <code>aria-labelledby</code> が存在しないidを指している場合は見抜けないため、「疑い」に置いています。</li>
+      <li><b>D2</b>：120字という基準は目安で、一次情報で確認したものではありません。</li>
+      <li><b>A2・A4の「疑い」</b>：「サンプル」「仮」「確認」は普通の日本語なので、正規の本文でも出ます。</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="site-footer">
+  <p>納品前チェック ─ 納品前のHTMLから、仕様では引っかからない事故を洗い出すツール。
+    画像の書き出しは <a href="https://kaz-ma.github.io/imgset/" target="_blank" rel="noreferrer">imgset</a>。</p>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===========================================================
+     3. スキャナ（03-設計書.md §3）
+     DOMParserは使わない。行番号が必要で、木構造は不要だから。
+     =========================================================== */
+
+  var RAW_END = { script: '<\/script', style: '<\/style', textarea: '<\/textarea' };
+
+  function scan(input) {
+    var src = String(input).replace(/\r\n?/g, '\n');
+    var n = src.length;
+
+    // 3-1. 行頭オフセット
+    var lineStarts = [0];
+    for (var p = 0; p < n; p++) if (src.charCodeAt(p) === 10) lineStarts.push(p + 1);
+    function lineOf(off) {
+      var lo = 0, hi = lineStarts.length - 1;
+      while (lo < hi) {
+        var mid = (lo + hi + 1) >> 1;
+        if (lineStarts[mid] <= off) lo = mid; else hi = mid - 1;
+      }
+      return lo + 1;
+    }
+
+    var lower = src.toLowerCase();
+    var tokens = [];
+    var i = 0;
+
+    function isLetter(c) { return !!c && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')); }
+
+    // 「タグの始まり」に見えるかどうか。<p>1 < 2</p> の < を誤判定しないため。
+    function isTagStart(pos) {
+      if (src.charAt(pos) !== '<') return false;
+      var c1 = src.charAt(pos + 1);
+      if (c1 === '!') return true;
+      if (c1 === '/') return isLetter(src.charAt(pos + 2));
+      return isLetter(c1);
+    }
+
+    function nextTagStart(from) {
+      var q = from;
+      while (q < n) {
+        var lt = src.indexOf('<', q);
+        if (lt < 0) return -1;
+        if (isTagStart(lt)) return lt;
+        q = lt + 1;
+      }
+      return -1;
+    }
+
+    // 3-3. 開始タグと属性
+    function parseOpen(lt) {
+      var j = lt + 1;
+      while (j < n && '\t\n\f\r />'.indexOf(src.charAt(j)) < 0) j++;
+      var name = src.slice(lt + 1, j).toLowerCase();
+      var attrs = Object.create(null);   // __proto__ 対策
+      var order = [];
+      var selfClosing = false;
+
+      while (j < n) {
+        while (j < n && /\s/.test(src.charAt(j))) j++;
+        if (j >= n) break;
+        var ch = src.charAt(j);
+        if (ch === '>') { j++; break; }
+        if (ch === '/') {
+          if (src.charAt(j + 1) === '>') { selfClosing = true; j += 2; break; }
+          j++; continue;
+        }
+        var k = j;
+        while (k < n && '\t\n\f\r =/>'.indexOf(src.charAt(k)) < 0) k++;
+        if (k === j) { j++; continue; }                 // 安全弁（無限ループ防止）
+        var an = src.slice(j, k).toLowerCase();
+        var av = '';
+        var m = k;
+        while (m < n && /\s/.test(src.charAt(m))) m++;
+        if (src.charAt(m) === '=') {
+          m++;
+          while (m < n && /\s/.test(src.charAt(m))) m++;
+          var q = src.charAt(m);
+          if (q === '"' || q === "'") {
+            // 3-3 の要点：引用符つきの値は不可分に読む。中の > でタグを閉じない。
+            var close = src.indexOf(q, m + 1);
+            if (close < 0) { av = src.slice(m + 1); m = n; }
+            else { av = src.slice(m + 1, close); m = close + 1; }
+          } else {
+            var e = m;
+            while (e < n && '\t\n\f\r >'.indexOf(src.charAt(e)) < 0) e++;
+            av = src.slice(m, e); m = e;
+          }
+          j = m;
+        } else {
+          j = k;
+        }
+        if (!(an in attrs)) { attrs[an] = av; order.push(an); }   // 重複は最初を採る
+      }
+      return { kind: 'open', name: name, attrs: attrs, order: order,
+               start: lt, end: j, line: lineOf(lt), selfClosing: selfClosing };
+    }
+
+    // 3-2. 本体の走査
+    while (i < n) {
+      var lt = nextTagStart(i);
+      if (lt < 0) {
+        if (i < n) tokens.push({ kind: 'text', text: src.slice(i), start: i, line: lineOf(i) });
+        break;
+      }
+      if (lt > i) tokens.push({ kind: 'text', text: src.slice(i, lt), start: i, line: lineOf(i) });
+
+      if (src.substr(lt, 4) === '<!--') {
+        var ce = src.indexOf('-->', lt + 4);
+        var tEnd = ce < 0 ? n : ce;
+        var nxt = ce < 0 ? n : ce + 3;
+        tokens.push({ kind: 'comment', text: src.slice(lt + 4, tEnd), start: lt, end: nxt, line: lineOf(lt) });
+        i = nxt; continue;
+      }
+      if (src.charAt(lt + 1) === '!') {
+        var g = src.indexOf('>', lt);
+        if (g < 0) g = n - 1;
+        tokens.push({ kind: 'doctype', start: lt, end: g + 1, line: lineOf(lt) });
+        i = g + 1; continue;
+      }
+      if (src.charAt(lt + 1) === '/') {
+        var j2 = lt + 2;
+        while (j2 < n && '\t\n\f\r >'.indexOf(src.charAt(j2)) < 0) j2++;
+        var cname = src.slice(lt + 2, j2).toLowerCase();
+        var g2 = src.indexOf('>', j2);
+        if (g2 < 0) g2 = n - 1;
+        tokens.push({ kind: 'close', name: cname, start: lt, end: g2 + 1, line: lineOf(lt) });
+        i = g2 + 1; continue;
+      }
+
+      var tok = parseOpen(lt);
+      tokens.push(tok);
+      i = tok.end;
+
+      // 3-4. 生テキスト要素。終了タグ全体ではなく「閉じ山かっこ抜き」で探す（ブラウザと同じ挙動）
+      //      ※この行に終了タグを literal で書くと、ここで script が終わってしまう
+      var endNeedle = RAW_END[tok.name];
+      if (endNeedle && !tok.selfClosing) {
+        var cpos = lower.indexOf(endNeedle, i);
+        var contentEnd = cpos < 0 ? n : cpos;
+        tokens.push({ kind: 'raw', name: tok.name, text: src.slice(i, contentEnd),
+                      ownerAttrs: tok.attrs, start: i, line: lineOf(i) });
+        if (cpos < 0) { i = n; }
+        else {
+          var g3 = src.indexOf('>', cpos);
+          if (g3 < 0) g3 = n - 1;
+          tokens.push({ kind: 'close', name: tok.name, start: cpos, end: g3 + 1, line: lineOf(cpos) });
+          i = g3 + 1;
+        }
+      }
+    }
+
+    return { src: src, tokens: tokens, lineOf: lineOf, lineStarts: lineStarts };
+  }
+
+  /* ===========================================================
+     判定で使う共通の道具
+     =========================================================== */
+
+  var URL_ATTRS = ['src', 'href', 'srcset', 'poster', 'action', 'formaction', 'data-src', 'content'];
+  var TEXTY_ATTRS = ['alt', 'title', 'placeholder', 'content'];
+  var RESOURCE_TAGS = { img: 1, script: 1, link: 1, iframe: 1, video: 1, audio: 1, source: 1, embed: 1, track: 1 };
+
+  function excerpt(src, start, end) {
+    var a = Math.max(0, start - 20), b = Math.min(src.length, end + 20);
+    var s = src.slice(a, b).replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    return (a > 0 ? '…' : '') + s + (b < src.length ? '…' : '');
+  }
+  function tagText(src, tok) {
+    return src.slice(tok.start, Math.min(tok.end, tok.start + 160));
+  }
+  function firstUrlOf(value) {           // srcset の "a.jpg 1x, b.jpg 2x" から先頭URLを取る
+    return String(value).split(',')[0].trim().split(/\s+/)[0] || '';
+  }
+
+  /* ===========================================================
+     4. 検査項目（03-設計書.md §4）
+     =========================================================== */
+
+  var LOCAL_PATTERNS = [
+    { re: /^(?:[a-z][a-z0-9+.\-]*:)?\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?(?:[\/?#]|$)/i, what: 'localhost / ループバックアドレス' },
+    { re: /^(?:localhost|127\.0\.0\.1)(?::\d+)(?:[\/?#]|$)/i, what: 'localhost（スキームなし）' },
+    { re: /^file:\/\//i, what: 'file:// （自分のPCのファイル）' },
+    { re: /^(?:[a-z][a-z0-9+.\-]*:)?\/\/[^\/?#]*\.(?:test|local)(?::\d+)?(?:[\/?#]|$)/i, what: '.test / .local ドメイン' },
+    { re: /^(?:[a-z][a-z0-9+.\-]*:)?\/\/[^\/?#]*ngrok[^\/?#]*/i, what: 'ngrok の一時URL' }
+  ];
+
+  var DUMMY_SURE = [
+    { re: /lorem\s+ipsum/i, what: 'Lorem ipsum' },
+    { re: /ダミーテキスト|ダミー画像/, what: 'ダミーテキスト' },
+    { re: /([a-zA-Z])\1{4,}/, what: '同じ英字の5文字以上の連続' },
+    { re: /([ぁ-んァ-ヶ])\1{2,}/, what: '同じ仮名の3文字以上の連続' }
+  ];
+  var DUMMY_DOUBT = [/サンプル/, /仮/, /テスト/, /TODO/i, /未定/, /○○/, /△△/, /ここに/, /あとで/, /後で/];
+
+  var DEBUG_RE = /console\.(?:log|debug|table|info|warn)\s*\(|\bdebugger\b|\balert\s*\(/g;
+
+  var MEMO_SURE = /TODO|FIXME|XXX/i;
+  var MEMO_DOUBT = /仮|修正|確認|あとで|メモ/;
+
+  // A5：機種依存文字。℃（U+2103）は除外（現在のフォントで確実に表示でき、正規に多用される）
+  var PLATFORM_RE = /[①-⓿Ⅰ-ⅿ｡-ﾟ㈀-㏿№℡]/g;
+
+  var EMPTY_HREFS = ['#', '', 'http://', 'https://', 'javascript:void(0)', 'javascript:void(0);', 'javascript:;'];
+  var NO_LABEL_TYPES = { hidden: 1, submit: 1, button: 1, image: 1, reset: 1 };
+
+  function check(scanned) {
+    var src = scanned.src, tokens = scanned.tokens, lineOf = scanned.lineOf;
+    var out = [];
+    function add(tier, id, title, line, code, why, fix) {
+      out.push({ tier: tier, id: id, title: title, line: line, code: code, why: why, fix: fix });
+    }
+
+    // 事前集計
+    var imgs = [], headings = [], labelFors = Object.create(null);
+    var htmlTag = null, titleText = null, hasTitleEl = false;
+    var metas = [];
+    var inPicture = false;
+    var inLabel = false;          // <label> 〜 </label> の内側か（inPicture と同じ手法）
+    var collectingTitle = false;
+
+    for (var t = 0; t < tokens.length; t++) {
+      var tk = tokens[t];
+      if (tk.kind === 'open') {
+        if (tk.name === 'picture') inPicture = true;
+        if (tk.name === 'img') { tk._inPicture = inPicture; tk._imgIndex = imgs.length; imgs.push(tk); }
+        if (/^h[1-6]$/.test(tk.name)) headings.push(tk);
+        if (tk.name === 'label') {
+          if ('for' in tk.attrs) labelFors[tk.attrs['for']] = true;
+          inLabel = true;                       // 囲む形のラベル付けを拾う
+        }
+        if (tk.name === 'input' || tk.name === 'select' || tk.name === 'textarea') tk._inLabel = inLabel;
+        if (tk.name === 'html' && !htmlTag) htmlTag = tk;
+        if (tk.name === 'meta') metas.push(tk);
+        if (tk.name === 'title' && !hasTitleEl) { hasTitleEl = true; collectingTitle = true; titleText = ''; }
+      } else if (tk.kind === 'close') {
+        if (tk.name === 'picture') inPicture = false;
+        if (tk.name === 'label') inLabel = false;
+        if (tk.name === 'title') collectingTitle = false;
+      } else if (tk.kind === 'text' && collectingTitle) {
+        titleText += tk.text;
+      }
+    }
+
+    /* ---- A1 自分のPCを指すURL（確実） ---- */
+    for (var t1 = 0; t1 < tokens.length; t1++) {
+      var o = tokens[t1];
+      if (o.kind !== 'open') continue;
+      for (var ai = 0; ai < URL_ATTRS.length; ai++) {
+        var an = URL_ATTRS[ai];
+        if (!(an in o.attrs)) continue;
+        var v = firstUrlOf(o.attrs[an]);
+        for (var li = 0; li < LOCAL_PATTERNS.length; li++) {
+          if (LOCAL_PATTERNS[li].re.test(v)) {
+            add('sure', 'A1', '自分のPCを指すURL（' + LOCAL_PATTERNS[li].what + '）',
+              o.line, tagText(src, o),
+              '本番には存在しないアドレスです。自分のPCでは最後まで正常に見えるため、構造的に自分では気づけません。',
+              '公開先のURLか、相対パスに直してください。');
+            break;
+          }
+        }
+      }
+    }
+
+    /* ---- A2 ダミーテキスト（確実＋疑い） ---- */
+    function scanDummy(text, line, code) {
+      if (!text || !text.trim()) return;
+      for (var s = 0; s < DUMMY_SURE.length; s++) {
+        var m = DUMMY_SURE[s].re.exec(text);
+        if (m) {
+          add('sure', 'A2', 'ダミーテキストの残り（' + DUMMY_SURE[s].what + '）', line, code,
+            '差し替え忘れです。読み慣れた文字列は、自分の目が飛ばします。',
+            '本番の文章に差し替えてください。');
+          return;
+        }
+      }
+      for (var d = 0; d < DUMMY_DOUBT.length; d++) {
+        if (DUMMY_DOUBT[d].test(text)) {
+          add('doubt', 'A2', 'ダミーかもしれない文字列', line, code,
+            '正規の本文にも出る言葉です（「サンプルコード」「仮想」「テスト対策」など）。目で見て判断してください。',
+            '差し替え忘れなら直してください。本文なら無視してかまいません。');
+          return;
+        }
+      }
+    }
+    for (var t2 = 0; t2 < tokens.length; t2++) {
+      var tt = tokens[t2];
+      if (tt.kind === 'text') {
+        scanDummy(tt.text, tt.line, excerpt(src, tt.start, tt.start + tt.text.length));
+      } else if (tt.kind === 'open') {
+        for (var xa = 0; xa < TEXTY_ATTRS.length; xa++) {
+          var ta = TEXTY_ATTRS[xa];
+          if (ta in tt.attrs) scanDummy(tt.attrs[ta], tt.line, tagText(src, tt));
+        }
+      }
+    }
+
+    /* ---- A3 script内のデバッグコード（確実＋疑い） ---- */
+    for (var t3 = 0; t3 < tokens.length; t3++) {
+      var rw = tokens[t3];
+      if (rw.kind !== 'raw' || rw.name !== 'script') continue;
+      if (rw.ownerAttrs && 'src' in rw.ownerAttrs) continue;   // 外部scriptは中身を持たない
+      DEBUG_RE.lastIndex = 0;
+      var mm, seen = Object.create(null);
+      while ((mm = DEBUG_RE.exec(rw.text)) !== null) {
+        var absolute = rw.start + mm.index;
+        var ln = lineOf(absolute);
+        if (seen[ln + '|' + mm[0]]) continue;
+        seen[ln + '|' + mm[0]] = true;
+        // 段の決め方：一致した行の先頭（空白を除く）が // または * なら疑い
+        var lineStart = scanned.lineStarts[ln - 1];
+        var head = src.slice(lineStart, absolute).replace(/^\s+/, '');
+        var commented = head.indexOf('//') === 0 || head.charAt(0) === '*';
+        add(commented ? 'doubt' : 'sure', 'A3',
+          'script内のデバッグコード（' + mm[0].replace(/\s*\($/, '').replace(/;$/, '') + '）', ln,
+          src.slice(lineStart, Math.min(src.length, lineStart + 160)).split('\n')[0],
+          'debugger は、開発者ツールを開いた閲覧者のブラウザを止めます。console.log の実害は小さいですが、ソースを見られたときに未完成だと分かります。',
+          commented ? 'コメントアウトされています。不要なら行ごと消してください。' : '消してください。');
+      }
+    }
+
+    /* ---- A4 コメント内の作業メモ（確実＋疑い） ---- */
+    for (var t4 = 0; t4 < tokens.length; t4++) {
+      var cm = tokens[t4];
+      if (cm.kind !== 'comment') continue;
+      var ct = cm.text;
+      if (/^\s*\[\s*if/i.test(ct)) continue;              // 条件付きコメント
+      if (MEMO_SURE.test(ct)) {
+        add('sure', 'A4', 'コメントに作業メモが残っています', cm.line,
+          '<!--' + ct.slice(0, 120) + '-->',
+          'HTMLコメントは、ソースを見れば誰でも読めます。社内のやり取りが客に見えます。',
+          'コメントごと消してください。');
+      } else if (MEMO_DOUBT.test(ct)) {
+        add('doubt', 'A4', 'コメントが作業メモかもしれません', cm.line,
+          '<!--' + ct.slice(0, 120) + '-->',
+          '「仮」「修正」「確認」は普通の日本語なので、区切りコメントでも出ます。',
+          '作業メモなら消してください。');
+      }
+    }
+
+    /* ---- A5 機種依存文字（確実） ---- */
+    function scanPlatform(text, line, code) {
+      if (!text) return;
+      PLATFORM_RE.lastIndex = 0;
+      var found = {}, list = [], m5;
+      while ((m5 = PLATFORM_RE.exec(text)) !== null) {
+        if (!found[m5[0]]) { found[m5[0]] = 1; list.push(m5[0]); }
+      }
+      if (!list.length) return;
+      add('sure', 'A5', '機種依存文字（' + list.slice(0, 8).join(' ') + '）', line, code,
+        '環境によって別の文字や □（豆腐）になります。日本語固有の事故で、海外製のツールは見ません。',
+        '① → (1) または 1.／㈱ → 株式会社／㎡ → m2 または m²／半角カナ → 全角カナ に直してください。');
+    }
+    for (var t5 = 0; t5 < tokens.length; t5++) {
+      var p5 = tokens[t5];
+      if (p5.kind === 'text') {
+        scanPlatform(p5.text, p5.line, excerpt(src, p5.start, p5.start + p5.text.length));
+      } else if (p5.kind === 'open') {
+        for (var ya = 0; ya < TEXTY_ATTRS.length; ya++) {
+          var tb = TEXTY_ATTRS[ya];
+          if (tb in p5.attrs) scanPlatform(p5.attrs[tb], p5.line, tagText(src, p5));
+        }
+      }
+    }
+
+    /* ---- B1 width / height が無い（確実） ---- */
+    for (var b1 = 0; b1 < imgs.length; b1++) {
+      var im = imgs[b1];
+      var noW = !('width' in im.attrs) || !im.attrs.width;
+      var noH = !('height' in im.attrs) || !im.attrs.height;
+      if (noW || noH) {
+        add('sure', 'B1', 'img に ' + (noW && noH ? 'width と height' : noW ? 'width' : 'height') + ' が無い',
+          im.line, tagText(src, im),
+          'ブラウザは画像を読み終わる前は大きさを知りません。だから高さ0の場所として組み立て、読み終わってから本来の高さに広げます。その瞬間、下の文章が下へ押し出されます。CSSの aspect-ratio で確保している場合も検出します（HTMLだけではCSSを見られません）。',
+          '元画像の縦横の実寸を width と height に書いてください。CSSで表示サイズを変えても問題ありません。');
+      }
+    }
+
+    /* ---- B2 loading="lazy"（候補） ---- */
+    for (var b2 = 0; b2 < imgs.length; b2++) {
+      var im2 = imgs[b2];
+      var lazy = String(im2.attrs.loading || '').toLowerCase() === 'lazy';
+      if (b2 < 2 && lazy) {
+        add('maybe', 'B2', '最初に見える画像に loading="lazy" が付いているかもしれません', im2.line, tagText(src, im2),
+          'lazy は画面に入るまで読み込みを遅らせます。最初に見える画像に付けると、見えているのに読み込みが始まらないので逆に遅く見えます。位置は推測です（最初の2枚を最初に見える画像と仮定しています）。',
+          'ファーストビューに入る画像なら loading="lazy" を外してください。');
+      } else if (b2 >= 2 && !lazy) {
+        add('maybe', 'B2', 'loading="lazy" が付いていないかもしれません', im2.line, tagText(src, im2),
+          '画面外の画像も最初にまとめて読み込まれます。位置は推測です（3枚目以降を画面外と仮定しています）。',
+          'ファーストビューの外なら loading="lazy" を付けてください。');
+      }
+    }
+
+    /* ---- B3 srcset が無い（候補） ---- */
+    for (var b3 = 0; b3 < imgs.length; b3++) {
+      var im3 = imgs[b3];
+      if ('srcset' in im3.attrs && im3.attrs.srcset) continue;
+      if (im3._inPicture) continue;
+      if (!('src' in im3.attrs) || !String(im3.attrs.src).trim()) continue;   // JSで後から入れる画像
+      if (/\.svg(?:[?#]|$)/i.test(String(im3.attrs.src || ''))) continue;
+      add('maybe', 'B3', 'srcset が無い img', im3.line, tagText(src, im3),
+        'スマホにも同じ大きさの画像をそのまま送っている状態です。写真なら転送量の差が大きくなります。',
+        'imgset で複数サイズを書き出して srcset を付けてください（結果欄の下にリンクがあります）。');
+    }
+
+    /* ---- B4 h1 の個数（確実） ---- */
+    var h1s = headings.filter(function (h) { return h.name === 'h1'; });
+    if (h1s.length === 0) {
+      add('sure', 'B4', 'h1 が1つもありません', 1, '',
+        'そのページの主題を示す見出しがない状態です。',
+        '主題を表す見出しを h1 にしてください。');
+    } else if (h1s.length >= 2) {
+      for (var hh = 0; hh < h1s.length; hh++) {
+        add('sure', 'B4', 'h1 が ' + h1s.length + ' 個あります', h1s[hh].line, tagText(src, h1s[hh]),
+          '主題が複数ある状態です。文書の構造として、最上位の見出しは1つにします。',
+          '主題を1つに決め、残りは h2 にしてください。');
+      }
+    }
+
+    /* ---- B5 見出し階層の飛び（確実） ---- */
+    var prevLv = 0;
+    for (var b5 = 0; b5 < headings.length; b5++) {
+      var lv = parseInt(headings[b5].name.charAt(1), 10);
+      if (prevLv && lv - prevLv >= 2) {
+        add('sure', 'B5', '見出しの階層が飛んでいます（h' + prevLv + ' → h' + lv + '）',
+          headings[b5].line, tagText(src, headings[b5]),
+          '見出しは本の目次と同じ入れ子です。段を飛ばすと、読み上げソフトが構造をたどれず、この節がどこに属するのか分からなくなります。',
+          'h' + (prevLv + 1) + ' に直すか、間の見出しを足してください。');
+      }
+      prevLv = lv;
+    }
+
+    /* ---- C1 入力欄にラベルが無い（疑い） ---- */
+    for (var c1 = 0; c1 < tokens.length; c1++) {
+      var fe = tokens[c1];
+      if (fe.kind !== 'open') continue;
+      if (fe.name !== 'input' && fe.name !== 'select' && fe.name !== 'textarea') continue;
+      var ty = String(fe.attrs.type || 'text').toLowerCase();
+      if (fe.name === 'input' && NO_LABEL_TYPES[ty]) continue;
+      if ('hidden' in fe.attrs) continue;               // hidden 属性。画面に出ないのでラベル不要
+      if ('aria-label' in fe.attrs || 'aria-labelledby' in fe.attrs || 'title' in fe.attrs) continue;
+      if (fe._inLabel) continue;                        // <label>…<input>…</label> の囲む形
+      var id = fe.attrs.id;
+      if (id && labelFors[id]) continue;
+      add('doubt', 'C1', fe.name + ' にラベルが紐付いていません', fe.line, tagText(src, fe),
+        '読み上げソフトが「何を入れる欄か」を伝えられません。label で囲む形（<label>名前<input></label>）と for による対応は、どちらも検出しません。',
+        '<label for="id"> と input の id を対応させるか、label で囲むか、aria-label を付けてください。');
+    }
+
+    /* ---- C2 空リンク（確実） ---- */
+    for (var c2 = 0; c2 < tokens.length; c2++) {
+      var aa = tokens[c2];
+      if (aa.kind !== 'open' || aa.name !== 'a') continue;
+      if (!('href' in aa.attrs)) continue;
+      var hv = String(aa.attrs.href).trim();
+      if (EMPTY_HREFS.indexOf(hv) >= 0 || EMPTY_HREFS.indexOf(hv.toLowerCase()) >= 0) {
+        add('sure', 'C2', '空リンク（href="' + hv + '"）', aa.line, tagText(src, aa),
+          '押しても何も起きないリンクです。差し替え忘れです。',
+          '移動先のURLを入れてください。ボタンとして使うなら <button> にしてください。');
+      }
+    }
+
+    /* ---- C3 http:// のリソース（確実） ---- */
+    for (var c3 = 0; c3 < tokens.length; c3++) {
+      var rs = tokens[c3];
+      if (rs.kind !== 'open' || !RESOURCE_TAGS[rs.name]) continue;
+      var urlAttrs = ['src', 'href', 'srcset', 'poster'];
+      for (var ua = 0; ua < urlAttrs.length; ua++) {
+        if (!(urlAttrs[ua] in rs.attrs)) continue;
+        var uv = firstUrlOf(rs.attrs[urlAttrs[ua]]);
+        if (/^http:\/\//i.test(uv)) {
+          add('sure', 'C3', 'http:// から読み込んでいるリソース', rs.line, tagText(src, rs),
+            'https のページから http のリソースを読むと、ブラウザが混在コンテンツとして遮断します。画像が消え、アドレスバーの鍵マークが外れます。リンク先（<a href>）には適用されないので、ここでは検出していません。',
+            'https:// に直すか、// で始める（プロトコル相対）か、自分のサーバーに置いてください。');
+          break;
+        }
+      }
+    }
+
+    /* ---- C4 target="_blank" と rel（情報） ---- */
+    var blankNoRel = [];
+    for (var c4 = 0; c4 < tokens.length; c4++) {
+      var ab = tokens[c4];
+      if (ab.kind !== 'open' || ab.name !== 'a') continue;
+      if (String(ab.attrs.target || '').toLowerCase() !== '_blank') continue;
+      var rel = String(ab.attrs.rel || '').toLowerCase();
+      if (rel.indexOf('noopener') < 0 && rel.indexOf('noreferrer') < 0) blankNoRel.push(ab);
+    }
+    if (blankNoRel.length) {
+      add('info', 'C4', 'rel="noopener" が無い target="_blank" が ' + blankNoRel.length + ' 件（問題ではありません）',
+        blankNoRel[0].line, tagText(src, blankNoRel[0]),
+        'rel="noopener" は、現在のブラウザでは不要です。Safari 12.1（2018〜19）、Firefox 79（2020年中）、Chromium 88（2021年初）以降、target="_blank" には自動で noopener が適用され、WHATWG HTML仕様に入っています（対応率約95%）。',
+        '日本語の納品前チェックリストには今も「必須」として載っていますが、現在のブラウザだけを対象にするなら書かなくても安全です。古いブラウザを対象にする場合のみ、明示する意味があります。');
+    }
+
+    /* ---- D1 title（確実） ---- */
+    if (!hasTitleEl) {
+      add('sure', 'D1', 'title 要素がありません', 1, '',
+        '検索結果とブラウザのタブに出る文字です。無いとURLが表示されます。',
+        '<head> に <title>ページ名 | サイト名</title> を入れてください。');
+    } else if (!String(titleText || '').trim()) {
+      add('sure', 'D1', 'title が空です', 1, '<title></title>',
+        '検索結果とブラウザのタブに出る文字です。',
+        'ページ名を入れてください。');
+    }
+
+    /* ---- D2 meta description（確実／疑い） ---- */
+    var desc = null;
+    for (var d2 = 0; d2 < metas.length; d2++) {
+      if (String(metas[d2].attrs.name || '').toLowerCase() === 'description') { desc = metas[d2]; break; }
+    }
+    if (!desc) {
+      add('sure', 'D2', 'meta description がありません', 1, '',
+        '検索結果に出る説明文です。無いとGoogleが本文から勝手に抜き出します。',
+        '<meta name="description" content="…"> を入れてください。');
+    } else {
+      var dlen = Array.from(String(desc.attrs.content || '')).length;
+      if (dlen > 120) {
+        add('doubt', 'D2', 'meta description が長いかもしれません（' + dlen + '字）', desc.line, tagText(src, desc),
+          '検索結果では全角120字前後から省略されるという目安があります。ただしこの数字は一次情報で確認したものではなく、実際の表示は環境で変わります。',
+          '大事なことを前半に置いてください。');
+      }
+    }
+
+    /* ---- D3 og（確実） ---- */
+    var ogNeed = ['og:title', 'og:image', 'og:description'];
+    var ogHave = Object.create(null);
+    for (var d3 = 0; d3 < metas.length; d3++) {
+      var key = String(metas[d3].attrs.property || metas[d3].attrs.name || '').toLowerCase();
+      if (key) ogHave[key] = metas[d3];
+    }
+    for (var oi = 0; oi < ogNeed.length; oi++) {
+      if (!ogHave[ogNeed[oi]]) {
+        add('sure', 'D3', ogNeed[oi] + ' がありません', 1, '',
+          'SNSに貼ったときのカードの見た目を決める情報です。無いとURLだけの寂しい表示になります。',
+          '<meta property="' + ogNeed[oi] + '" content="…"> を入れてください。');
+      }
+    }
+
+    /* ---- D4 html lang（確実） ---- */
+    if (!htmlTag) {
+      // 断片を貼った場合。html要素が無いのは異常ではないので何も言わない
+    } else if (!('lang' in htmlTag.attrs) || !String(htmlTag.attrs.lang).trim()) {
+      add('sure', 'D4', 'html に lang がありません', htmlTag.line, tagText(src, htmlTag),
+        '読み上げソフトがどの言語で読むかを判断できません。ブラウザの翻訳提案も誤作動します。',
+        '<html lang="ja"> にしてください。');
+    } else if (/^en\b/i.test(String(htmlTag.attrs.lang))) {
+      add('sure', 'D4', 'html lang が "' + htmlTag.attrs.lang + '" のままです', htmlTag.line, tagText(src, htmlTag),
+        '日本語のページに英語を指定すると、読み上げが英語の発音規則で日本語を読もうとします。',
+        '<html lang="ja"> に直してください。');
+    }
+
+    // 2-4. 並び順：段 → 群 → 行番号
+    var tierRank = { sure: 0, doubt: 1, maybe: 2, info: 3 };
+    out.sort(function (a, b) {
+      if (tierRank[a.tier] !== tierRank[b.tier]) return tierRank[a.tier] - tierRank[b.tier];
+      if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+      return a.line - b.line;
+    });
+    return out;
+  }
+
+  function inspect(input) {
+    var t0 = (performance && performance.now) ? performance.now() : Date.now();
+    var scanned = scan(input);
+    var findings = check(scanned);
+    var t1 = (performance && performance.now) ? performance.now() : Date.now();
+    return { findings: findings, ms: t1 - t0, scanned: scanned };
+  }
+
+  /* ===========================================================
+     表示
+     =========================================================== */
+
+  var TIERS = [
+    { key: 'sure',  label: '確実',   cls: 'c-sure',  desc: '判定が機械的に確定します。直してください。', open: true },
+    { key: 'doubt', label: '疑い',   cls: 'c-doubt', desc: '正規の本文でも起こりえます。目で見て判断してください。', open: true },
+    { key: 'maybe', label: '候補',   cls: 'c-maybe', desc: 'HTMLソースだけでは断定できません。推測です。', open: false },
+    { key: 'info',  label: '情報',   cls: 'c-info',  desc: '問題ではありませんが、知っておくとよい事実です。', open: false }
+  ];
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // 設計書 追補1 §11：段の中を検査項目ごとにまとめる
+  function groupByItem(list) {
+    var map = Object.create(null), order = [];
+    list.forEach(function (f) {
+      if (!map[f.id]) { map[f.id] = { id: f.id, title: f.title, why: f.why, fix: f.fix, items: [] }; order.push(f.id); }
+      map[f.id].items.push(f);
+    });
+    var groups = order.map(function (k) { return map[k]; });
+    groups.forEach(function (g) { g.items.sort(function (a, b) { return a.line - b.line; }); });
+    // §11-3：件数の多い順 → 同数なら項目ID順
+    groups.sort(function (a, b) {
+      if (a.items.length !== b.items.length) return b.items.length - a.items.length;
+      return a.id < b.id ? -1 : 1;
+    });
+    return groups;
+  }
+
+  function renderGroup(tier, g) {
+    var n = g.items.length;
+    var h = '<div class="group t-' + tier + '">' +
+      '<p class="g-head"><span class="f-id">' + g.id + '</span>' +
+      '<span class="f-title">' + esc(g.title) + '</span>' +
+      '<span class="g-count">' + n + '件</span></p>' +
+      '<p class="f-why">' + esc(g.why) + '</p>' +
+      '<p class="f-fix">' + esc(g.fix) + '</p>';
+
+    var withLine = g.items.filter(function (f) { return f.line > 0 && f.code; });
+    if (withLine.length) {
+      var shown = withLine.slice(0, 20);
+      h += '<p class="g-lines"><span class="lbl">場所：</span>' +
+        shown.map(function (f) { return '<span class="g-line">' + f.line + '行</span>'; }).join('') +
+        (withLine.length > 20 ? '<span class="g-more">ほか' + (withLine.length - 20) + '件</span>' : '') + '</p>';
+
+      // §11-1：1件だけの種類は折りたたまない（開く操作が無駄なため）
+      var body = withLine.map(function (f) {
+        return '<div class="g-item"><span class="ln">' + f.line + '行目</span>' +
+               '<pre class="f-code">' + esc(f.code) + '</pre></div>';
+      }).join('');
+      if (withLine.length === 1) h += body;
+      else h += '<details class="g-detail"><summary>該当箇所を見る（' + withLine.length + '件）</summary>' + body + '</details>';
+    }
+    return h + '</div>';
+  }
+
+  function render(result, label) {
+    var box = document.getElementById('result');
+    var findings = result.findings;
+    var head = label ? '<p class="target">検査したファイル：<b>' + esc(label) + '</b></p>' : '';
+    if (!findings.length) {
+      box.innerHTML = head + '<p class="ok">18項目すべて、指摘はありません。</p>' +
+        '<p class="note">検査時間 ' + result.ms.toFixed(1) + ' ms。' +
+        '実機の表示崩れ、ホバーの動き、フォームの送信は機械では判定できません。そこは目で見てください。</p>';
+      return;
+    }
+    var by = { sure: [], doubt: [], maybe: [], info: [] };
+    findings.forEach(function (f) { by[f.tier].push(f); });
+
+    var html = head + '<p class="counts">';
+    TIERS.forEach(function (t) {
+      var kinds = groupByItem(by[t.key]).length;
+      html += '<span class="' + t.cls + '">' + t.label + ' <b>' + by[t.key].length + '</b> 件' +
+              (kinds > 1 ? '<span class="g-more"> / ' + kinds + '種類</span>' : '') + '</span>';
+    });
+    html += '</p><p class="note">検査時間 ' + result.ms.toFixed(1) + ' ms。スコアは出しません。</p>';
+
+    TIERS.forEach(function (t) {
+      var list = by[t.key];
+      if (!list.length) return;
+      var groups = groupByItem(list);
+      var inner = '<p class="tier-desc">' + t.desc + '</p>' +
+        groups.map(function (g) { return renderGroup(t.key, g); }).join('');
+      var cap = list.length + '件' + (groups.length > 1 ? '・' + groups.length + '種類' : '');
+      if (t.open) {
+        html += '<div class="tier"><p class="tier-head ' + t.cls + '">' + t.label + '（' + cap + '）</p>' + inner + '</div>';
+      } else {
+        html += '<details class="tier"><summary class="' + t.cls + '">' + t.label + '（' + cap + '）</summary>' + inner + '</details>';
+      }
+    });
+    box.innerHTML = html;
+  }
+
+  /* ===========================================================
+     入力の配線（ボタンなし・120msのデバウンス）
+     =========================================================== */
+
+  var ta = document.getElementById('src');
+  var timer = null;
+  function run() {
+    var v = ta.value;
+    if (!v.trim()) {
+      document.getElementById('result').innerHTML =
+        '<p class="note">HTMLを渡すと、ここに結果が出ます。</p>';
+      return;
+    }
+    render(inspect(v), null);
+  }
+
+  /* ===========================================================
+     ファイル／フォルダの読み込み（設計書 追補1 §10）
+     FileReader はネットワークを使わない。外部通信は0件のまま。
+     =========================================================== */
+
+  var SKIP_DIRS = ['node_modules', '.git', 'dist', 'build', 'vendor', '.next', 'out', 'coverage'];
+  var MAX_FILES = 200;
+  var MAX_BYTES = 5 * 1024 * 1024;
+
+  function isHtml(name) { return /\.html?$/i.test(name); }
+  function isSkipped(path) {
+    var parts = String(path).split('/');
+    for (var i = 0; i < parts.length; i++) if (SKIP_DIRS.indexOf(parts[i]) >= 0) return true;
+    return false;
+  }
+
+  // 10-3 文字コードの判定。Shift_JIS を UTF-8 として読むと A5 が誤爆するため、正しさの問題。
+  var ENC_ALIAS = {
+    'shift_jis': 'shift_jis', 'shift-jis': 'shift_jis', 'sjis': 'shift_jis', 'x-sjis': 'shift_jis',
+    'windows-31j': 'shift_jis', 'cp932': 'shift_jis', 'ms932': 'shift_jis',
+    'euc-jp': 'euc-jp', 'x-euc-jp': 'euc-jp',
+    'iso-2022-jp': 'iso-2022-jp', 'csiso2022jp': 'iso-2022-jp',
+    'utf-8': 'utf-8', 'utf8': 'utf-8'
+  };
+  function decodeBuffer(buf) {
+    var bytes = new Uint8Array(buf);
+    var headLen = Math.min(2048, bytes.length), head = '';
+    for (var i = 0; i < headLen; i++) head += String.fromCharCode(bytes[i]);
+    var m = head.match(/charset\s*=\s*["']?\s*([a-zA-Z0-9_\-]+)/i);
+    var label = m ? ENC_ALIAS[m[1].toLowerCase()] : null;
+    var used = label || 'utf-8';
+    var text;
+    try { text = new TextDecoder(used).decode(bytes); }
+    catch (e) { used = 'utf-8'; text = new TextDecoder('utf-8').decode(bytes); }
+    return { text: text, enc: used, declared: m ? m[1] : null };
+  }
+
+  function readFile(file) {
+    return new Promise(function (resolve) {
+      if (file.size > MAX_BYTES) { resolve({ file: file, tooBig: true }); return; }
+      var fr = new FileReader();
+      fr.onload = function () {
+        var d = decodeBuffer(fr.result);
+        resolve({ file: file, text: d.text, enc: d.enc, declared: d.declared });
+      };
+      fr.onerror = function () { resolve({ file: file, error: true }); };
+      fr.readAsArrayBuffer(file);
+    });
+  }
+
+  function walkEntry(entry, path, out) {
+    return new Promise(function (resolve) {
+      if (!entry) { resolve(); return; }
+      if (entry.isFile) {
+        if (isHtml(entry.name) && !isSkipped(path)) {
+          entry.file(function (fl) { out.push({ file: fl, path: path + entry.name }); resolve(); },
+                     function () { resolve(); });
+        } else resolve();
+        return;
+      }
+      if (SKIP_DIRS.indexOf(entry.name) >= 0) { resolve(); return; }
+      var reader = entry.createReader(), all = [];
+      (function readMore() {
+        reader.readEntries(function (batch) {
+          if (!batch.length) {
+            Promise.all(all.map(function (e) { return walkEntry(e, path + entry.name + '/', out); })).then(resolve);
+            return;
+          }
+          all = all.concat(batch); readMore();
+        }, function () { resolve(); });
+      })();
+    });
+  }
+
+  var loaded = [];
+  var activeIndex = -1;
+
+  function showFileList(total) {
+    var area = document.getElementById('filelist-area');
+    if (!loaded.length) {
+      area.innerHTML = '<p class="note" style="margin-top:14px">.html / .htm のファイルが見つかりませんでした。</p>';
+      return;
+    }
+    if (loaded.length === 1) { area.innerHTML = ''; return; }
+    var encCount = {};
+    loaded.forEach(function (x) { if (x.enc) encCount[x.enc] = (encCount[x.enc] || 0) + 1; });
+    var encTxt = Object.keys(encCount).map(function (k) { return k + ' ' + encCount[k] + '件'; }).join('・');
+    var over = total > loaded.length ? '（' + total + '件のうち' + loaded.length + '件を検査しました）' : '';
+    var rows = loaded.map(function (x, i) {
+      if (x.tooBig) return '<tr><td>' + esc(x.path) + '</td><td colspan="4" class="zero">大きすぎます（5MB超）</td></tr>';
+      var c = { sure: 0, doubt: 0, maybe: 0, info: 0 };
+      x.result.findings.forEach(function (f) { c[f.tier]++; });
+      function cell(n, cls) { return '<td class="' + (n ? cls : 'zero') + '">' + n + '</td>'; }
+      return '<tr class="pick' + (i === activeIndex ? ' active' : '') + '" data-i="' + i + '">' +
+        '<td>' + esc(x.path) + ' <span class="enc">' + x.enc + '</span></td>' +
+        cell(c.sure, 'c-sure') + cell(c.doubt, 'c-doubt') + cell(c.maybe, 'c-maybe') + cell(c.info, 'c-info') + '</tr>';
+    }).join('');
+    area.innerHTML = '<p class="note" style="margin-top:14px">ファイル一覧（' + loaded.length + '件／' + encTxt + '）' + over +
+      '　確実の多い順。行を押すと下に詳細が出ます。</p>' +
+      '<div class="filelist-wrap"><table class="filelist"><thead><tr><th>ファイル</th>' +
+      '<th>確実</th><th>疑い</th><th>候補</th><th>情報</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    Array.prototype.forEach.call(area.querySelectorAll('tr.pick'), function (tr) {
+      tr.addEventListener('click', function () { selectFile(+tr.getAttribute('data-i')); });
+    });
+  }
+
+  function selectFile(i) {
+    activeIndex = i;
+    var x = loaded[i];
+    if (!x || x.tooBig) return;
+    render(x.result, x.path);
+    showFileList(loaded.length);
+  }
+
+  function intake(entries, total) {
+    var area = document.getElementById('filelist-area');
+    area.innerHTML = '<p class="note" style="margin-top:14px">読み込み中…</p>';
+    loaded = []; activeIndex = -1;
+    var chain = Promise.resolve();
+    entries.forEach(function (ent) {
+      chain = chain.then(function () {
+        return readFile(ent.file).then(function (r) {
+          r.path = ent.path;
+          if (!r.tooBig && !r.error) r.result = inspect(r.text);
+          loaded.push(r);
+        });
+      });
+    });
+    return chain.then(function () {
+      loaded = loaded.filter(function (x) { return !x.error; });
+      loaded.sort(function (a, b) {
+        var an = a.tooBig ? -1 : a.result.findings.filter(function (f) { return f.tier === 'sure'; }).length;
+        var bn = b.tooBig ? -1 : b.result.findings.filter(function (f) { return f.tier === 'sure'; }).length;
+        if (an !== bn) return bn - an;
+        return a.path < b.path ? -1 : 1;
+      });
+      showFileList(total);
+      var first = -1;
+      for (var i = 0; i < loaded.length; i++) if (!loaded[i].tooBig) { first = i; break; }
+      if (first >= 0) selectFile(first);
+    });
+  }
+
+  function fromFileList(fileList) {
+    var all = [];
+    for (var i = 0; i < fileList.length; i++) {
+      var fl = fileList[i];
+      var p = fl.webkitRelativePath || fl.name;
+      if (isHtml(fl.name) && !isSkipped(p)) all.push({ file: fl, path: p });
+    }
+    var total = all.length;
+    intake(all.slice(0, MAX_FILES), total);
+  }
+
+  document.getElementById('pick-folder').addEventListener('click', function () {
+    document.getElementById('input-folder').click();
+  });
+  document.getElementById('pick-file').addEventListener('click', function () {
+    document.getElementById('input-file').click();
+  });
+  document.getElementById('input-folder').addEventListener('change', function (e) { fromFileList(e.target.files); });
+  document.getElementById('input-file').addEventListener('change', function (e) { fromFileList(e.target.files); });
+
+  var dz = document.getElementById('dropzone');
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('is-over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('is-over'); });
+  });
+  dz.addEventListener('drop', function (e) {
+    var items = e.dataTransfer.items, out = [];
+    if (items && items.length && items[0].webkitGetAsEntry) {
+      var entries = [];
+      for (var i = 0; i < items.length; i++) {
+        var en = items[i].webkitGetAsEntry();
+        if (en) entries.push(en);
+      }
+      Promise.all(entries.map(function (en) { return walkEntry(en, '', out); })).then(function () {
+        var total = out.length;
+        intake(out.slice(0, MAX_FILES), total);
+      });
+    } else {
+      fromFileList(e.dataTransfer.files);
+    }
+  });
+  ta.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(run, 120);
+  });
+  document.getElementById('clear').addEventListener('click', function () {
+    ta.value = ''; run(); ta.focus();
+  });
+
+  var SAMPLE = [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<title></title>',
+    '</head>',
+    '<body>',
+    '  <!-- TODO: 画像を本番のものに差し替える -->',
+    '  <h1>㈱山根商店</h1>',
+    '  <img src="http://localhost:3000/hero.jpg" alt="ヒーロー画像" loading="lazy">',
+    '  <h3>①はじめに</h3>',
+    '  <p>ここにテキストが入ります。Lorem ipsum dolor sit amet.</p>',
+    '  <img src="http://example.com/photo1.jpg">',
+    '  <img src="photo2.jpg">',
+    '  <img src="icon.svg">',
+    '  <p><a href="#">詳しく見る</a> / <a href="https://example.com" target="_blank">外部</a></p>',
+    '  <form>',
+    '    <input type="text" name="email">',
+    '    <input type="hidden" name="token">',
+    '  </form>',
+    '  <script>',
+    '    console.log("debug");',
+    '    // console.log("commented");',
+    '    var s = "<\\/script>";',
+    '  <\/script>',
+    '</body>',
+    '</html>'
+  ].join('\n');
+
+  document.getElementById('sample').addEventListener('click', function () {
+    ta.value = SAMPLE; run();
+  });
+
+  /* ===========================================================
+     テスト用の入口（03-設計書.md §6）
+     =========================================================== */
+  window.__nouhin = { scan: scan, check: check, inspect: inspect, SAMPLE: SAMPLE };
+})();
+</script>
+</body>
+</html>
